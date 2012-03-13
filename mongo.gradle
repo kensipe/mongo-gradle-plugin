@@ -1,0 +1,75 @@
+// this script assumes mongo is on path of the system... it could be mod'd to use the driver alone at some pt.
+
+task mongoServerStatus(type: MongoCommand) {
+	
+	server = "" // default to local... but capable of hitting a server
+	command = "printjson(db.serverStatus())"
+	
+}
+
+task mongoShowCollections(type: MongoCommand) {
+	command = "db.getCollectionNames()"
+}
+
+task mongoCopyDatabase {
+
+	server = ""
+	from = ""
+	to = ""
+
+
+	doLast {
+		// overwrite is the default
+		if(project.hasProperty("server") && project.server != null ) {
+			mongoCopyDatabase.server = project.server
+			logger.info ("switch server to ${mongoCopyDatabase.server}")
+		}
+
+		if(project.hasProperty("from") && project.from != null ) {
+			mongoCopyDatabase.from = project.from		
+			logger.info ("switch from to ${mongoCopyDatabase.from}")
+		}
+		
+		if(mongoCopyDatabase.server == "" || mongoCopyDatabase.from == "") {	
+			println "Server name and db from must be provided"
+			throw new StopActionException()
+		}
+	
+		if(mongoCopyDatabase.to == "") {
+			to = from
+		}
+	
+		logger.info( "copy db:${from} from ${server}")
+		command = "db.copyDatabase('${from}','${to}','${server}');"
+	
+		// this has to be on the server the copy is going to...
+		executionCommand = "mongo ${to} "
+		
+		dropCommand = "db.dropDatabase();"
+		println "dropping db... "
+		println "${executionCommand} --eval '${dropCommand}'".execute().text
+		println "${executionCommand} --eval '${command}'".execute().text
+		println "complete!"
+	}
+	
+}
+
+class MongoCommand extends DefaultTask {
+	String server = "" 
+	String command = ""
+	
+	@TaskAction
+    def invokeCommand() {       
+		executionCommand = "mongo "  // was mongo dbname.. need to look at this
+
+		if(project.hasProperty("server") && project.server != "") {
+			this.server = project.server
+		}
+	
+		if(this.server != "") {
+			executionCommand += "--host ${server} "
+		}
+		
+		println "${executionCommand} --eval '${command}'".execute().text
+	}	
+}
